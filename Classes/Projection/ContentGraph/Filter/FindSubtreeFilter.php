@@ -7,34 +7,33 @@ namespace Neos\ContentRepository\Core\Projection\ContentGraph\Filter;
 use Neos\ContentRepository\Core\Projection\ContentGraph\NodeTypeConstraints;
 
 /**
- * Immutable filter DTO for {@see ContentSubgraphInterface::findChildNodes()}
+ * Immutable filter DTO for {@see ContentSubgraphInterface::findSubtree()}
  *
  * Example:
  *
- * FindChildNodesFilter::create()->with(nodeTypeConstraint: 'Some.Included:NodeType,!Some.Excluded:NodeType');
+ * FindSubtreeFilter::create()->with(nodeTypeConstraint: 'Some.Included:NodeType,!Some.Excluded:NodeType');
  *
  * @api for the factory methods; NOT for the inner state.
  */
-final class FindChildNodesFilter
+final class FindSubtreeFilter
 {
     /**
      * @internal (the properties themselves are readonly; only the write-methods are API.
      */
     private function __construct(
         public readonly ?NodeTypeConstraints $nodeTypeConstraints,
-        public readonly ?int $limit,
-        public readonly ?int $offset,
+        public readonly ?int $maximumLevels,
     ) {
     }
 
     public static function create(): self
     {
-        return new self(null, null, null);
+        return new self(null, null);
     }
 
     public static function nodeTypeConstraints(NodeTypeConstraints|string $nodeTypeConstraints): self
     {
-        return self::create()->withNodeTypeConstraints($nodeTypeConstraints);
+        return self::create()->with(nodeTypeConstraints: $nodeTypeConstraints);
     }
 
     /**
@@ -45,26 +44,19 @@ final class FindChildNodesFilter
      */
     public function with(
         NodeTypeConstraints|string $nodeTypeConstraints = null,
-        int $limit = null,
-        int $offset = null
+        int $maximumLevels = null,
     ): self {
         if (is_string($nodeTypeConstraints)) {
             $nodeTypeConstraints = NodeTypeConstraints::fromFilterString($nodeTypeConstraints);
         }
         return new self(
             $nodeTypeConstraints ?? $this->nodeTypeConstraints,
-            $limit ?? $this->limit,
-            $offset ?? $this->offset,
+            $maximumLevels ?? $this->maximumLevels,
         );
     }
 
-    public function withNodeTypeConstraints(NodeTypeConstraints|string $nodeTypeConstraints): self
+    public function withMaximumLevels(int $maximumLevels): self
     {
-        return $this->with(nodeTypeConstraints: $nodeTypeConstraints);
-    }
-
-    public function withPagination(int $limit, int $offset): self
-    {
-        return $this->with(limit: $limit, offset: $offset);
+        return $this->with(maximumLevels: $maximumLevels);
     }
 }
