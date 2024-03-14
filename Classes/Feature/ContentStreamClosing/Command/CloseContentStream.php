@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Neos\ContentRepository\Core\Feature\ContentStreamRemoval\Command;
+namespace Neos\ContentRepository\Core\Feature\ContentStreamClosing\Command;
 
 /*
  * This file is part of the Neos.ContentRepository package.
@@ -18,14 +18,12 @@ use Neos\ContentRepository\Core\CommandHandler\CommandInterface;
 use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreamId;
 
 /**
- * Command to remove an existing content stream
- *
  * @api commands are the write-API of the ContentRepository
  */
-final readonly class RemoveContentStream implements CommandInterface
+final readonly class CloseContentStream implements CommandInterface
 {
     /**
-     * @param ContentStreamId $contentStreamId The id of the content stream to remove
+     * @param ContentStreamId $contentStreamId The id of the content stream to close
      */
     private function __construct(
         public ContentStreamId $contentStreamId,
@@ -33,10 +31,21 @@ final readonly class RemoveContentStream implements CommandInterface
     }
 
     /**
-     * @param ContentStreamId $contentStreamId The id of the content stream to remove
+     * @param ContentStreamId $contentStreamId The id of the content stream to close
      */
     public static function create(ContentStreamId $contentStreamId): self
     {
         return new self($contentStreamId);
+    }
+
+    /**
+     * @param array<string,string> $array
+     * @internal only used for testcases
+     */
+    public static function fromArray(array $array): self
+    {
+        return new self(
+            ContentStreamId::fromString($array['contentStreamId']),
+        );
     }
 }
