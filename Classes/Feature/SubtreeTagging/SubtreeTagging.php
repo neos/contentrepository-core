@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Neos\ContentRepository\Core\Feature\NodeDisabling;
+namespace Neos\ContentRepository\Core\Feature\SubtreeTagging;
 
 /*
  * This file is part of the Neos.ContentRepository package.
@@ -15,54 +15,39 @@ namespace Neos\ContentRepository\Core\Feature\NodeDisabling;
  */
 
 use Neos\ContentRepository\Core\ContentRepository;
-use Neos\ContentRepository\Core\DimensionSpace\Exception\DimensionSpacePointNotFound;
 use Neos\ContentRepository\Core\DimensionSpace;
 use Neos\ContentRepository\Core\EventStore\Events;
 use Neos\ContentRepository\Core\EventStore\EventsToPublish;
+use Neos\ContentRepository\Core\Feature\Common\ConstraintChecks;
+use Neos\ContentRepository\Core\Feature\Common\NodeAggregateEventPublisher;
 use Neos\ContentRepository\Core\Feature\ContentStreamEventStreamName;
-use Neos\ContentRepository\Core\Feature\SubtreeTagging\Dto\SubtreeTag;
+use Neos\ContentRepository\Core\Feature\SubtreeTagging\Command\TagSubtree;
+use Neos\ContentRepository\Core\Feature\SubtreeTagging\Command\UntagSubtree;
 use Neos\ContentRepository\Core\Feature\SubtreeTagging\Event\SubtreeWasTagged;
 use Neos\ContentRepository\Core\Feature\SubtreeTagging\Event\SubtreeWasUntagged;
-use Neos\ContentRepository\Core\SharedModel\Exception\ContentStreamDoesNotExistYet;
-use Neos\ContentRepository\Core\Feature\NodeDisabling\Command\DisableNodeAggregate;
-use Neos\ContentRepository\Core\Feature\NodeDisabling\Command\EnableNodeAggregate;
-use Neos\ContentRepository\Core\SharedModel\Exception\NodeAggregatesTypeIsAmbiguous;
-use Neos\ContentRepository\Core\SharedModel\Exception\NodeAggregateCurrentlyDoesNotExist;
-use Neos\ContentRepository\Core\Feature\Common\NodeAggregateEventPublisher;
 use Neos\EventStore\Model\EventStream\ExpectedVersion;
 
 /**
  * @internal implementation detail of Command Handlers
  */
-trait NodeDisabling
+trait SubtreeTagging
 {
+    use ConstraintChecks;
+
     abstract protected function getInterDimensionalVariationGraph(): DimensionSpace\InterDimensionalVariationGraph;
 
-    /**
-     * @return EventsToPublish
-     * @throws ContentStreamDoesNotExistYet
-     * @throws DimensionSpacePointNotFound
-     * @throws NodeAggregateCurrentlyDoesNotExist
-     * @throws NodeAggregatesTypeIsAmbiguous
-     */
-    private function handleDisableNodeAggregate(
-        DisableNodeAggregate $command,
-        ContentRepository $contentRepository
-    ): EventsToPublish {
+    private function handleTagSubtree(TagSubtree $command, ContentRepository $contentRepository): EventsToPublish
+    {
         $contentStreamId = $this->requireContentStream($command->workspaceName, $contentRepository);
-        $expectedVersion = $this->getExpectedVersionOfContentStream($contentStreamId, $contentRepository);
         $this->requireDimensionSpacePointToExist($command->coveredDimensionSpacePoint);
-        $nodeAggregate = $this->requireProjectedNodeAggregate(
-            $contentStreamId,
-            $command->nodeAggregateId,
-            $contentRepository
-        );
+        $nodeAggregate = $this->requireProjectedNodeAggregate($contentStreamId, $command->nodeAggregateId, $contentRepository);
         $this->requireNodeAggregateToCoverDimensionSpacePoint(
             $nodeAggregate,
             $command->coveredDimensionSpacePoint
         );
-        if ($nodeAggregate->getDimensionSpacePointsTaggedWith(SubtreeTag::disabled())->contains($command->coveredDimensionSpacePoint)) {
-            // already disabled, so we can return a no-operation.
+
+        if ($nodeAggregate->getDimensionSpacePointsTaggedWith($command->tag)->contains($command->coveredDimensionSpacePoint)) {
+            // already explicitly tagged with the same Subtree Tag, so we can return a no-operation.
             return EventsToPublish::empty();
         }
 
@@ -78,7 +63,7 @@ trait NodeDisabling
                 $contentStreamId,
                 $command->nodeAggregateId,
                 $affectedDimensionSpacePoints,
-                SubtreeTag::disabled(),
+                $command->tag,
             ),
         );
 
@@ -89,23 +74,13 @@ trait NodeDisabling
                 $command,
                 $events
             ),
-            $expectedVersion
+            ExpectedVersion::ANY()
         );
     }
 
-    /**
-     * @param EnableNodeAggregate $command
-     * @return EventsToPublish
-     * @throws ContentStreamDoesNotExistYet
-     * @throws DimensionSpacePointNotFound
-     * @throws NodeAggregatesTypeIsAmbiguous
-     */
-    public function handleEnableNodeAggregate(
-        EnableNodeAggregate $command,
-        ContentRepository $contentRepository
-    ): EventsToPublish {
+    public function handleUntagSubtree(UntagSubtree $command, ContentRepository $contentRepository): EventsToPublish
+    {
         $contentStreamId = $this->requireContentStream($command->workspaceName, $contentRepository);
-        $expectedVersion = $this->getExpectedVersionOfContentStream($contentStreamId, $contentRepository);
         $this->requireDimensionSpacePointToExist($command->coveredDimensionSpacePoint);
         $nodeAggregate = $this->requireProjectedNodeAggregate(
             $contentStreamId,
@@ -116,8 +91,9 @@ trait NodeDisabling
             $nodeAggregate,
             $command->coveredDimensionSpacePoint
         );
-        if (!$nodeAggregate->getDimensionSpacePointsTaggedWith(SubtreeTag::disabled())->contains($command->coveredDimensionSpacePoint)) {
-            // already enabled, so we can return a no-operation.
+
+        if (!$nodeAggregate->getDimensionSpacePointsTaggedWith($command->tag)->contains($command->coveredDimensionSpacePoint)) {
+            // not explicitly tagged with the given Subtree Tag, so we can return a no-operation.
             return EventsToPublish::empty();
         }
 
@@ -133,14 +109,14 @@ trait NodeDisabling
                 $contentStreamId,
                 $command->nodeAggregateId,
                 $affectedDimensionSpacePoints,
-                SubtreeTag::disabled(),
+                $command->tag,
             )
         );
 
         return new EventsToPublish(
             ContentStreamEventStreamName::fromContentStreamId($contentStreamId)->getEventStreamName(),
             NodeAggregateEventPublisher::enrichWithCommand($command, $events),
-            $expectedVersion
+            ExpectedVersion::ANY()
         );
     }
 }
