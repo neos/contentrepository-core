@@ -16,10 +16,13 @@ namespace Neos\ContentRepository\Core;
 
 use Neos\ContentRepository\Core\Projection\ContentGraph\ContentGraphInterface;
 use Neos\ContentRepository\Core\Projection\ProjectionStateInterface;
-use Neos\ContentRepository\Core\SharedModel\Exception\ContentStreamDoesNotExistYet;
 use Neos\ContentRepository\Core\SharedModel\Exception\WorkspaceDoesNotExist;
+use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStream;
 use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreamId;
+use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreams;
+use Neos\ContentRepository\Core\SharedModel\Workspace\Workspace;
 use Neos\ContentRepository\Core\SharedModel\Workspace\WorkspaceName;
+use Neos\ContentRepository\Core\SharedModel\Workspace\Workspaces;
 
 /**
  * A finder for a ContentGraph bound to contentStream / workspaceName
@@ -29,16 +32,31 @@ use Neos\ContentRepository\Core\SharedModel\Workspace\WorkspaceName;
  * @internal User land code should not use this directly.
  * @see ContentRepository::getContentGraph()
  */
-final class ContentGraphFinder implements ProjectionStateInterface
+final class ContentRepositoryReadModel implements ProjectionStateInterface
 {
-    /**
-     * @var array<string, ContentGraphInterface>
-     */
-    private array $contentGraphInstances = [];
-
     public function __construct(
-        private readonly ContentGraphFactoryInterface $contentGraphFactory
+        private readonly ContentRepositoryReadModelAdapterInterface $adapter
     ) {
+    }
+
+    public function findWorkspaceByName(WorkspaceName $workspaceName): ?Workspace
+    {
+        return $this->adapter->findWorkspaceByName($workspaceName);
+    }
+
+    public function findWorkspaces(): Workspaces
+    {
+        return $this->adapter->findWorkspaces();
+    }
+
+    public function findContentStreamById(ContentStreamId $contentStreamId): ?ContentStream
+    {
+        return $this->adapter->findContentStreamById($contentStreamId);
+    }
+
+    public function findContentStreams(): ContentStreams
+    {
+        return $this->adapter->findContentStreams();
     }
 
     /**
@@ -48,24 +66,13 @@ final class ContentGraphFinder implements ProjectionStateInterface
      * @throws WorkspaceDoesNotExist if the provided workspace does not resolve to an existing content stream
      * @see ContentRepository::getContentGraph()
      */
-    public function getByWorkspaceName(WorkspaceName $workspaceName): ContentGraphInterface
+    public function getContentGraphByWorkspaceName(WorkspaceName $workspaceName): ContentGraphInterface
     {
-        if (isset($this->contentGraphInstances[$workspaceName->value])) {
-            return $this->contentGraphInstances[$workspaceName->value];
+        $workspace = $this->findWorkspaceByName($workspaceName);
+        if ($workspace === null) {
+            throw WorkspaceDoesNotExist::butWasSupposedTo($workspaceName);
         }
-
-        $this->contentGraphInstances[$workspaceName->value] = $this->contentGraphFactory->buildForWorkspace($workspaceName);
-        return $this->contentGraphInstances[$workspaceName->value];
-    }
-
-   /**
-     * To release all held instances, in case a workspace/content stream relation needs to be reset
-     *
-     * @internal Should only be needed after write operations (which should take care on their own)
-     */
-    public function forgetInstances(): void
-    {
-        $this->contentGraphInstances = [];
+        return $this->adapter->buildContentGraph($workspace->workspaceName, $workspace->currentContentStreamId);
     }
 
     /**
@@ -73,10 +80,10 @@ final class ContentGraphFinder implements ProjectionStateInterface
      *
      * @param WorkspaceName $workspaceName
      * @param ContentStreamId $contentStreamId
-     * @internal Only for the write side during publishing {@see \Neos\ContentRepository\Core\CommandHandlingDependencies::overrideContentStreamId}
+     * @internal Only for testing
      */
-    public function getByWorkspaceNameAndContentStreamId(WorkspaceName $workspaceName, ContentStreamId $contentStreamId): ContentGraphInterface
+    public function getContentGraphByWorkspaceNameAndContentStreamId(WorkspaceName $workspaceName, ContentStreamId $contentStreamId): ContentGraphInterface
     {
-        return $this->contentGraphFactory->buildForWorkspaceAndContentStream($workspaceName, $contentStreamId);
+        return $this->adapter->buildContentGraph($workspaceName, $contentStreamId);
     }
 }

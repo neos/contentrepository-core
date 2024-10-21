@@ -1,6 +1,8 @@
 <?php
 
-namespace Neos\ContentRepository\Core\Projection\Workspace;
+declare(strict_types=1);
+
+namespace Neos\ContentRepository\Core\SharedModel\Workspace;
 
 /**
  * @api
