@@ -12,14 +12,12 @@
 
 declare(strict_types=1);
 
-namespace Neos\ContentRepository\Core\Projection\Workspace;
-
-use Neos\ContentRepository\Core\SharedModel\Workspace\WorkspaceName;
+namespace Neos\ContentRepository\Core\SharedModel\Workspace;
 
 /**
  * An immutable, type-safe collection of Workspace objects
  *
- * @implements \IteratorAggregate<int,Workspace>
+ * @implements \IteratorAggregate<Workspace>
  *
  * @api
  */
@@ -32,17 +30,14 @@ final class Workspaces implements \IteratorAggregate, \Countable
     private array $workspaces;
 
     /**
-     * @param iterable<mixed,Workspace> $collection
+     * @param iterable<Workspace> $collection
      */
     private function __construct(iterable $collection)
     {
         $workspaces = [];
         foreach ($collection as $item) {
             if (!$item instanceof Workspace) {
-                throw new \InvalidArgumentException(
-                    'Workspaces can only consist of ' . Workspace::class . ' objects.',
-                    1677833509
-                );
+                throw new \InvalidArgumentException(sprintf('Workspaces must only consist of %s objects, got: %s', Workspace::class, get_debug_type($item)), 1677833509);
             }
             $workspaces[$item->workspaceName->value] = $item;
         }
@@ -51,7 +46,7 @@ final class Workspaces implements \IteratorAggregate, \Countable
     }
 
     /**
-     * @param array<mixed,Workspace> $workspaces
+     * @param array<Workspace> $workspaces
      */
     public static function fromArray(array $workspaces): self
     {
@@ -77,10 +72,10 @@ final class Workspaces implements \IteratorAggregate, \Countable
 
         $workspace = $this->get($workspaceName);
         if (!$workspace) {
-            return Workspaces::createEmpty();
+            return self::createEmpty();
         }
         $baseWorkspaceName = $workspace->baseWorkspaceName;
-        while ($baseWorkspaceName != null) {
+        while ($baseWorkspaceName !== null) {
             $baseWorkspace = $this->get($baseWorkspaceName);
             if ($baseWorkspace) {
                 $baseWorkspaces[] = $baseWorkspace;
@@ -89,19 +84,62 @@ final class Workspaces implements \IteratorAggregate, \Countable
                 $baseWorkspaceName = null;
             }
         }
-        return Workspaces::fromArray($baseWorkspaces);
+        return self::fromArray($baseWorkspaces);
     }
 
     /**
-     * @return \Traversable<int,Workspace>
+     * Get all dependent workspaces (if they are included in this result set).
      */
+    public function getDependantWorkspaces(WorkspaceName $workspaceName): Workspaces
+    {
+        return $this->filter(
+            static fn (Workspace $potentiallyDependentWorkspace) => $potentiallyDependentWorkspace->baseWorkspaceName?->equals($workspaceName) ?? false
+        );
+    }
+
     public function getIterator(): \Traversable
     {
         yield from array_values($this->workspaces);
     }
 
+    /**
+     * @param \Closure(Workspace): bool $callback
+     */
+    public function filter(\Closure $callback): self
+    {
+        return new self(array_filter($this->workspaces, $callback));
+    }
+
+    /**
+     * @param \Closure(Workspace): bool $callback
+     */
+    public function find(\Closure $callback): ?Workspace
+    {
+        foreach ($this->workspaces as $workspace) {
+            if ($callback($workspace)) {
+                return $workspace;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @template T
+     * @param \Closure(Workspace): T $callback
+     * @return list<T>
+     */
+    public function map(\Closure $callback): array
+    {
+        return array_map($callback, array_values($this->workspaces));
+    }
+
     public function count(): int
     {
         return count($this->workspaces);
+    }
+
+    public function isEmpty(): bool
+    {
+        return $this->workspaces === [];
     }
 }
