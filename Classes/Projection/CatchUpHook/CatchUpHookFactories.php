@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Neos\ContentRepository\Core\Projection;
+namespace Neos\ContentRepository\Core\Projection\CatchUpHook;
+
+use Neos\ContentRepository\Core\Projection\ProjectionStateInterface;
 
 /**
  * @implements CatchUpHookFactoryInterface<ProjectionStateInterface>
- * @internal
+ * @api
  */
 final class CatchUpHookFactories implements CatchUpHookFactoryInterface
 {
@@ -30,7 +32,6 @@ final class CatchUpHookFactories implements CatchUpHookFactoryInterface
 
     /**
      * @param CatchUpHookFactoryInterface<ProjectionStateInterface> $catchUpHookFactory
-     * @return self
      */
     public function with(CatchUpHookFactoryInterface $catchUpHookFactory): self
     {
@@ -48,6 +49,11 @@ final class CatchUpHookFactories implements CatchUpHookFactoryInterface
     private function has(string $catchUpHookFactoryClassName): bool
     {
         return array_key_exists($catchUpHookFactoryClassName, $this->catchUpHookFactories);
+    }
+
+    public function isEmpty(): bool
+    {
+        return $this->catchUpHookFactories === [];
     }
 
     public function build(CatchUpHookFactoryDependencies $dependencies): CatchUpHookInterface

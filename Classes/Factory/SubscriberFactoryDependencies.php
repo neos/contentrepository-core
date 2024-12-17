@@ -12,52 +12,52 @@
 
 declare(strict_types=1);
 
-namespace Neos\ContentRepository\Core\Projection;
+namespace Neos\ContentRepository\Core\Factory;
 
 use Neos\ContentRepository\Core\Dimension\ContentDimensionSourceInterface;
 use Neos\ContentRepository\Core\DimensionSpace\InterDimensionalVariationGraph;
+use Neos\ContentRepository\Core\Infrastructure\Property\PropertyConverter;
 use Neos\ContentRepository\Core\NodeType\NodeTypeManager;
 use Neos\ContentRepository\Core\SharedModel\ContentRepository\ContentRepositoryId;
 
 /**
- * @template-covariant T of ProjectionStateInterface
- *
- * @api provides available dependencies for implementing a catch-up hook.
+ * @api because it is used inside the ProjectionsFactory
  */
-final readonly class CatchUpHookFactoryDependencies
+final readonly class SubscriberFactoryDependencies
 {
-    /**
-     * @param ContentRepositoryId $contentRepositoryId the content repository the catchup was registered in
-     * @param ProjectionStateInterface&T $projectionState the state of the projection the catchup was registered to (Its only safe to access this projections state)
-     */
     private function __construct(
         public ContentRepositoryId $contentRepositoryId,
-        public ProjectionStateInterface $projectionState,
         public NodeTypeManager $nodeTypeManager,
         public ContentDimensionSourceInterface $contentDimensionSource,
-        public InterDimensionalVariationGraph $variationGraph
+        public InterDimensionalVariationGraph $interDimensionalVariationGraph,
+        private PropertyConverter $propertyConverter,
     ) {
     }
 
     /**
-     * @template U of ProjectionStateInterface
-     * @param ProjectionStateInterface&U $projectionState
-     * @return CatchUpHookFactoryDependencies<U>
      * @internal
      */
     public static function create(
         ContentRepositoryId $contentRepositoryId,
-        ProjectionStateInterface $projectionState,
         NodeTypeManager $nodeTypeManager,
         ContentDimensionSourceInterface $contentDimensionSource,
-        InterDimensionalVariationGraph $variationGraph
+        InterDimensionalVariationGraph $interDimensionalVariationGraph,
+        PropertyConverter $propertyConverter
     ): self {
         return new self(
             $contentRepositoryId,
-            $projectionState,
             $nodeTypeManager,
             $contentDimensionSource,
-            $variationGraph
+            $interDimensionalVariationGraph,
+            $propertyConverter
         );
+    }
+
+    /**
+     * @internal only to be used for custom content graph integrations to build a node property collection
+     */
+    public function getPropertyConverter(): PropertyConverter
+    {
+        return $this->propertyConverter;
     }
 }
